@@ -1637,7 +1637,7 @@ input[type='number'] {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.job-body > code {
+.job-body code {
   display: block;
   font-size: 9px;
   color: #748f5f;

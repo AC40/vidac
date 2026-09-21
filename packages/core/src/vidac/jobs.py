@@ -15,6 +15,7 @@ from vidac.exporting import export_edit
 from vidac.ingest import annotate_clip, generate_demo, ingest
 from vidac.media import VIDEO_EXTENSIONS
 from vidac.models import CreateEdit
+from vidac.relink import search_relinks
 
 log = logging.getLogger(__name__)
 
@@ -103,6 +104,8 @@ class Worker:
                     else Path(payload["path"])
                 )
                 result = ingest(self.workspace, self.db, path, progress, check)
+            elif job["kind"] == "relink":
+                result = search_relinks(self.db, Path(payload["path"]), progress, check)
             elif job["kind"] == "annotate":
                 progress(0.1, "Understanding clip with local vision model")
                 result = annotate_clip(self.workspace, self.db, payload["clip_id"], check)

@@ -186,3 +186,19 @@ def test_watch_requires_stable_file(db, workspace, tmp_path, monkeypatch):
     worker.watch()
     worker.watch()
     assert len(db.jobs()) == 1
+
+
+def test_folder_relink_job(client, workspace, seeded, tmp_path):
+    root = tmp_path / "new-drive"
+    root.mkdir()
+    moved = root / "renamed.mp4"
+    Path(seeded.asset("asset_0")["path"]).rename(moved)
+    assert client.post("/api/relink", json={"path": "/missing/folder"}).status_code == 400
+    response = client.post("/api/relink", json={"path": str(root)})
+    assert response.status_code == 202
+    job = response.json()
+    Worker(workspace, seeded).run_one()
+    done = client.get(f"/api/jobs/{job['id']}").json()
+    assert done["status"] == "succeeded"
+    assert done["result"]["relinked"][0]["path"] == str(moved)
+    assert client.get("/api/assets/asset_0").json()["online"]

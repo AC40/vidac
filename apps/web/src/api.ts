@@ -42,7 +42,13 @@ export interface Job {
   progress: number;
   stage: string;
   error?: string;
-  result?: { edit_id?: string; asset_id?: string; warnings?: string[] };
+  result?: {
+    edit_id?: string;
+    asset_id?: string;
+    warnings?: string[];
+    relinked?: { asset_id: string; name: string; path: string }[];
+    missing?: { asset_id: string; name: string; path: string }[];
+  };
   payload: Record<string, unknown>;
   created_at: string;
 }

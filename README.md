@@ -30,6 +30,7 @@ For private remote access through Tailscale, see [tailnet serving](docs/developm
 ## What works
 
 - Ingest local files/folders or upload video through the browser; SHA-256 deduplication.
+- Relink moved or renamed originals individually or by searching a folder and its subfolders.
 - FFmpeg shot detection, configurable select lengths, proxies, thumbnails, waveforms.
 - Virtual clips with editable ranges, tags, descriptions, favorites and full-text search.
 - Optional local visual descriptions and activity segmentation through Ollama.
@@ -41,6 +42,19 @@ For private remote access through Tailscale, see [tailnet serving](docs/developm
 - Agent-friendly CLI and strict JSON edit-plan schema.
 
 The synthetic sample in the welcome screen is generated locally from three colored shots. It is a pipeline exercise, not footage or an AI classification demo.
+
+## Moved footage and missing drives
+
+Clips and saved edits stay in the library when an original goes offline. Under **Source footage**, choose **Relink media**, enter the new folder path, and select **Search and relink**. Vidac searches its subfolders, verifies exact file contents, and lists recovered and still-missing originals in the activity queue. Renamed files work too. To reconnect one source, select it in the relink dialog and enter its new file path.
+
+Reimporting the same video automatically reconnects a missing original without duplicating clips. Watched folders also do this after files stop changing. Add the new drive's footage folder in Settings to use that behavior. Folder searches only run where you ask; Vidac does not scan all attached drives.
+
+```sh
+uv run vidac relink /Volumes/NewDrive/Footage
+uv run vidac relink /Volumes/NewDrive/renamed.mov --asset-id ASSET_ID
+```
+
+Relinking updates the source location without moving files or changing clip IDs, metadata, trims, or saved revisions. Exact copies qualify; transcoded or edited replacements do not. Already-online sources are left alone during folder searches. Unreadable files appear as warnings. Cancelling a search keeps links already recovered; rerunning it searches for the remaining missing sources. VFR editing intermediates remain separate workspace derivatives. Reimport the original to rebuild a missing intermediate or proxy. Re-export editor handoffs to include the new paths; previously generated files and existing Resolve/FCP projects are unchanged.
 
 ## Local AI
 

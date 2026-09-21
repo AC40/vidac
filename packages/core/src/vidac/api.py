@@ -21,8 +21,9 @@ from vidac.config import Settings, Workspace
 from vidac.db import Database, uid
 from vidac.editing import validate_plan
 from vidac.jobs import Worker
-from vidac.media import VIDEO_EXTENSIONS, digest, files_at
+from vidac.media import VIDEO_EXTENSIONS, files_at
 from vidac.models import ClipPatch, CreateEdit, EditPlan, SaveEdit
+from vidac.relink import relink_file
 
 
 class ImportRequest(BaseModel):
@@ -209,12 +210,14 @@ def create_app(workspace: Workspace | None = None, run_worker: bool = True) -> F
 
     @app.post("/api/assets/{asset_id}/relink")
     def relink(asset_id: str, request: RelinkRequest):
-        asset = db.asset(asset_id)
+        return relink_file(db, asset_id, Path(request.path))
+
+    @app.post("/api/relink", status_code=202)
+    def enqueue_relink(request: RelinkRequest):
         path = Path(request.path).expanduser().resolve()
-        if not path.is_file() or digest(path) != asset["sha256"]:
-            raise ValueError("Relinking requires the exact original file (SHA-256 must match).")
-        db.execute("UPDATE assets SET path=? WHERE id=?", (str(path), asset_id))
-        return db.asset(asset_id)
+        if not path.is_dir():
+            raise ValueError(f"Search folder is unavailable: {path}")
+        return db.enqueue("relink", {"path": str(path)})
 
     @app.get("/api/media/{asset_id}/{kind}")
     def media(asset_id: str, kind: str):

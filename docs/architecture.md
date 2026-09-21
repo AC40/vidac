@@ -31,7 +31,7 @@ Dependencies are pinned by `uv.lock` and `package-lock.json`. The web production
 
 ## Data and storage
 
-- **Assets** are immutable source bytes identified by SHA-256. A path import references the file in place. Browser uploads copy bytes into `uploads/`. A different file with the same hash is not ingested twice.
+- **Assets** are immutable source bytes identified by SHA-256. A path import references the file in place. Browser uploads copy bytes into `uploads/`. A different file with the same hash is not ingested twice. Source paths can change without changing asset identity. Recursive relink jobs match missing originals by size and SHA-256, including renamed files, and preserve clips, revisions and VFR intermediate references. Hashing checks file stability before committing a new path.
 - **Clips** are virtual frame ranges into an asset, not separately encoded videos. Every clip also has camera-shot bounds, title, tags, description, favorite state, analysis provenance and a thumbnail. Trimming can extend into that shot's handles but cannot cross its boundary.
 - **Edits** contain ordered clip references and explicit source trims. Each save writes a new immutable revision. Optimistic concurrency rejects stale saves instead of overwriting someone else's version.
 - **Artifacts** belong to a specific edit revision. Exporting an old revision does not export the current draft by accident.

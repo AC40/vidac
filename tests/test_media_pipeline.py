@@ -58,7 +58,12 @@ def test_real_ingest_edit_render_export(workspace, db, require_media):
     # Deleting a DERIVATIVE, never an original, must allow safe cache rebuild without new clips.
     proxy = Path(db.asset(result["asset_id"])["proxy_path"])
     proxy.unlink()
-    assert ingest(workspace, db, source, progress, noop)["duplicate"]
+    # A moved original reimport reconnects the existing asset and rebuilds its proxy.
+    moved = source.with_name("renamed-original.mp4")
+    source.rename(moved)
+    assert ingest(workspace, db, moved, progress, noop)["duplicate"]
+    assert db.asset(result["asset_id"])["path"] == str(moved)
+    assert db.edit(edit["id"])["plan"] == edit["plan"]
     assert proxy.is_file()
     assert len(db.clips()) == 3
 

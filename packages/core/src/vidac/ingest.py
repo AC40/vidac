@@ -12,12 +12,12 @@ from vidac.media import (
     conform_vfr,
     create_proxy,
     detect_shots,
-    digest,
     probe,
     thumbnail,
     waveform,
 )
 from vidac.providers import Ollama, transcribe
+from vidac.relink import fingerprint
 
 Progress = Callable[[float, str], None]
 
@@ -31,7 +31,7 @@ def ingest(
         raise ValueError(f"Source file is unavailable: {path}")
     before = path.stat()
     progress(0.03, "Fingerprinting original")
-    sha = digest(path, check)
+    sha = fingerprint(path, check)
     existing = db.one("SELECT id,status,path FROM assets WHERE sha256=?", (sha,))
     if existing and existing["status"] == "ready":
         if not Path(existing["path"]).is_file():

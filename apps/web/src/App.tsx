@@ -38,6 +38,7 @@ import { ClipInspector, CreateEditDialog, ImportDialog } from './components';
 import { EditWorkspace } from './EditWorkspace';
 import { SettingsPanel } from './SettingsPanel';
 
+import { RelinkDialog } from './RelinkDialog';
 type Page = 'library' | 'edits' | 'queue' | 'settings';
 const titles = {
   library: 'Your footage. Ready for the story.',
@@ -75,7 +76,8 @@ export function App() {
   const [source, setSource] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
   const [inspected, setInspected] = useState<Clip | null>(null);
-  const [dialog, setDialog] = useState<'import' | 'edit' | null>(null);
+  const [dialog, setDialog] = useState<'import' | 'edit' | 'relink' | null>(null);
+  const [relinkAsset, setRelinkAsset] = useState<Asset | null>(null);
   const [selectedEdit, setSelectedEdit] = useState('');
   const [pendingEdit, setPendingEdit] = useState('');
   const [toast, setToast] = useState<{ message: string; error: boolean } | null>(null);
@@ -186,16 +188,9 @@ export function App() {
   function toggleSelected(id: string) {
     setSelected((current) => (current.includes(id) ? current.filter((x) => x !== id) : [...current, id]));
   }
-  async function relink(asset: Asset) {
-    const path = window.prompt(`New path for the exact original file “${asset.name}”:`, asset.path);
-    if (!path) return;
-    try {
-      await api(`/assets/${asset.id}/relink`, 'POST', { path });
-      notify('Original media relinked.');
-      void refresh();
-    } catch (error) {
-      notify(errorMessage(error), true);
-    }
+  function relink(asset: Asset | null) {
+    setRelinkAsset(asset);
+    setDialog('relink');
   }
   return (
     <div className="app-shell">
@@ -259,6 +254,14 @@ export function App() {
             </button>
           </div>
           {!assets.length && <p className="hint">A home for every angle.</p>}
+          {assets.length > 0 && (
+            <button onClick={() => relink(null)}>
+              Relink media
+              {assets.some((asset) => !asset.online)
+                ? ` · ${assets.filter((asset) => !asset.online).length} missing`
+                : ''}
+            </button>
+          )}
           {assets.map((asset) => (
             <button
               title={asset.path}
@@ -642,9 +645,11 @@ export function App() {
                             ? 'Prepare footage'
                             : job.kind === 'edit'
                               ? 'Build rough cut'
-                              : job.kind === 'annotate'
-                                ? 'Analyze clip'
-                                : `Export ${job.payload.format || 'edit'}`}
+                              : job.kind === 'relink'
+                                ? 'Relink original media'
+                                : job.kind === 'annotate'
+                                  ? 'Analyze clip'
+                                  : `Export ${job.payload.format || 'edit'}`}
                       </h3>
                       <span className={`job-state ${job.status}`}>{job.status}</span>
                     </div>
@@ -656,6 +661,31 @@ export function App() {
                       </div>
                     )}
                     {job.result?.warnings?.map((warning, i) => (
+                    {job.result?.relinked && (
+                      <div>
+                        <p>
+                          {job.result.relinked.length} relinked · {job.result.missing?.length || 0} still
+                          missing
+                        </p>
+                        <details>
+                          <summary>Relink results</summary>
+                          {job.result.relinked.map((asset) => (
+                            <p key={asset.asset_id}>
+                              Relinked {asset.name}
+                              <br />
+                              <code>{asset.path}</code>
+                            </p>
+                          ))}
+                          {job.result.missing?.map((asset) => (
+                            <p key={asset.asset_id}>
+                              Still missing {asset.name}
+                              <br />
+                              <code>{asset.path}</code>
+                            </p>
+                          ))}
+                        </details>
+                      </div>
+                    )}
                       <p className="job-warning" key={i}>
                         {warning}
                       </p>
@@ -714,6 +744,16 @@ export function App() {
         )}
       </main>
       {dialog === 'import' && (
+      {dialog === 'relink' && (
+        <RelinkDialog
+          assets={assets}
+          initialAsset={relinkAsset}
+          close={() => setDialog(null)}
+          queued={() => navigate('queue')}
+          refresh={() => void refresh()}
+          notify={notify}
+        />
+      )}
         <ImportDialog close={() => setDialog(null)} notify={notify} refresh={() => void refresh()} />
       )}
       {dialog === 'edit' && (

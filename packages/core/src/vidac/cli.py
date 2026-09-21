@@ -77,6 +77,22 @@ def ingest(path: Path, wait: bool = True):
 
 
 @app.command()
+def relink(path: Path, asset_id: str | None = None, wait: bool = True):
+    """Search a folder recursively for missing originals, or relink --asset-id to a file."""
+    from vidac.relink import relink_file
+
+    workspace, db = context()
+    path = path.expanduser().resolve()
+    if asset_id:
+        print_json(relink_file(db, asset_id, path))
+        return
+    if not path.is_dir():
+        raise typer.BadParameter(f"Search folder is unavailable: {path}")
+    job = db.enqueue("relink", {"path": str(path)})
+    wait_for(workspace, db, [job]) if wait else print_json(job)
+
+
+@app.command()
 def demo(wait: bool = True):
     """Generate and ingest a small synthetic color-study video."""
     workspace, db = context()

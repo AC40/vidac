@@ -88,3 +88,39 @@ test('small viewport remains usable', async ({ page }) => {
   await page.getByRole('button', { name: 'Close dialog' }).click();
   await page.screenshot({ path: 'test-results/workspace-mobile.png', fullPage: true });
 });
+
+test('recover a moved original by searching a folder and its subfolders', async ({ page }) => {
+  const { mkdir, rename } = await import('node:fs/promises');
+  const { join, dirname } = await import('node:path');
+  const headers = { 'X-Vidac-Client': 'workspace' };
+  const demo = await (await page.request.post('/api/demo', { headers })).json();
+  await expect
+    .poll(async () => (await (await page.request.get(`/api/jobs/${demo.id}`)).json()).status)
+    .toBe('succeeded');
+  await page.goto('/');
+  await expect(page.locator('.clip-card')).toHaveCount(3);
+  const assets = await (await page.request.get('/api/assets')).json();
+  const asset = assets[0];
+  const clips = await (await page.request.get('/api/clips')).json();
+  const edits = await (await page.request.get('/api/edits')).json();
+  const root = join(dirname(asset.path), 'new-drive');
+  const nested = join(root, 'shoot', 'day-one');
+  await mkdir(nested, { recursive: true });
+  const moved = join(nested, 'renamed-original.mp4');
+  await rename(asset.path, moved);
+  await page.reload();
+  await page.getByRole('button', { name: 'Relink media · 1 missing', exact: true }).click();
+  await expect(page.getByRole('dialog')).toContainText('1 original missing');
+  await page.getByLabel('Folder to search').fill(root);
+  await page.screenshot({ path: 'test-results/workspace-relink.png', fullPage: true });
+  await page.getByRole('button', { name: 'Search and relink', exact: true }).click();
+  await expect(page.getByText('1 relinked · 0 still missing', { exact: true })).toBeVisible();
+  const recovered = await (await page.request.get(`/api/assets/${asset.id}`)).json();
+  expect(recovered.online).toBe(true);
+  expect(recovered.path).toBe(moved);
+  expect(await (await page.request.get('/api/clips')).json()).toEqual(clips);
+  expect(await (await page.request.get('/api/edits')).json()).toEqual(edits);
+  await page.getByText('Relink results', { exact: true }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
