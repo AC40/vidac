@@ -2,7 +2,7 @@
 
 A local workspace for turning raw footage into a reusable clip library and editable rough cuts.
 
-Vidac keeps your originals intact, generates review proxies, detects camera cuts, builds virtual selects, and exports timelines to DaVinci Resolve or Final Cut Pro. An optional local Ollama model describes footage and plans edits from creative direction. Everything lives in one repository.
+Vidac keeps your originals intact, generates review proxies, detects camera cuts, builds virtual selects, and exports timelines to DaVinci Resolve or Final Cut Pro. Optional Ollama, Codex CLI, Claude Code and OpenCode models describe footage and plan edits from creative direction. Everything lives in one repository.
 
 ## Start
 
@@ -33,7 +33,7 @@ For private remote access through Tailscale, see [tailnet serving](docs/developm
 - Relink moved or renamed originals individually or by searching a folder and its subfolders.
 - FFmpeg shot detection, configurable select lengths, proxies, thumbnails, waveforms.
 - Virtual clips with editable ranges, tags, descriptions, favorites and full-text search.
-- Optional local visual descriptions and activity segmentation through Ollama.
+- Optional visual descriptions and activity segmentation through Ollama or an installed AI CLI.
 - Optional local speech transcription with faster-whisper.
 - Deterministic offline assembly or model-driven creative rough cuts.
 - Reorder shots, adjust trims/looks/audio, save immutable edit revisions, restore history.
@@ -56,7 +56,35 @@ uv run vidac relink /Volumes/NewDrive/renamed.mov --asset-id ASSET_ID
 
 Relinking updates the source location without moving files or changing clip IDs, metadata, trims, or saved revisions. Exact copies qualify; transcoded or edited replacements do not. Already-online sources are left alone during folder searches. Unreadable files appear as warnings. Cancelling a search keeps links already recovered; rerunning it searches for the remaining missing sources. VFR editing intermediates remain separate workspace derivatives. Reimport the original to rebuild a missing intermediate or proxy. Re-export editor handoffs to include the new paths; previously generated files and existing Resolve/FCP projects are unchanged.
 
-## Local AI
+## AI providers
+
+Choose **Vision provider** and **Planning provider** independently in Settings, then enter a model ID or choose a suggestion. Empty model fields disable that task. Switching providers clears the model to avoid carrying an incompatible ID across services. Existing workspaces keep Ollama as their default.
+
+| Provider | Setup on the machine running Vidac | Model selection |
+| --- | --- | --- |
+| Ollama | Install Ollama and pull a model yourself | Installed model names |
+| Codex CLI | Install `codex`, then run `codex login` with your ChatGPT account | Model IDs supported by your account; suggestions use Codex's local model cache |
+| Claude Code | Install `claude`, then run `claude auth login` | `sonnet`, `opus`, `haiku`, or an exact model ID |
+| OpenCode | Install `opencode`, then run `opencode auth login` for your provider | `provider/model` IDs from `opencode models`, or enter one manually |
+
+Use current CLIs. Vidac calls their non-interactive interfaces and reuses their authentication; it does not extract login tokens or implement subscription billing. Your CLI account controls model access, usage limits and charges. A detected executable or suggested model does not prove authentication or entitlement. Codex uses its saved CLI login, including ChatGPT subscription access when available. No separate API key is required by Vidac.
+
+Enable **Allow CLI provider data sharing** before using a CLI provider. Planning sends your creative brief and catalogue descriptions. Vision sends sampled JPEG frames. Original video files stay on disk. The selected provider's data policies apply, and OpenCode may retain local sessions. Vidac never falls back to another provider automatically.
+
+[T3 Code](https://github.com/pingdotgg/t3code) controls underlying agent CLIs. Select the same Codex, Claude Code or OpenCode provider in Vidac; there is no separate T3 inference adapter or model catalogue.
+
+```sh
+uv run vidac models --provider codex
+uv run vidac configure-ai planning codex YOUR_MODEL_ID --allow-remote
+uv run vidac configure-ai vision claude sonnet --allow-remote
+uv run vidac edit "A calm morning routine" --ai
+```
+
+`--allow-remote` enables CLI data sharing for the workspace. Disable it in Settings to prevent further CLI inference. `VIDAC_CODEX`, `VIDAC_CLAUDE` and `VIDAC_OPENCODE` can point to executable files if the server's PATH differs from your terminal. These are paths, not shell commands. The model timeout is configurable from 10 to 1,800 seconds, with a 300-second default.
+
+CLI integrations are tested against response fixtures and local subprocesses. No live account inference or subscription entitlement was verified by the test suite. See [Codex non-interactive mode](https://developers.openai.com/codex/noninteractive), [Claude Code programmatic usage](https://code.claude.com/docs/en/headless), and [OpenCode CLI](https://opencode.ai/docs/cli/) for their authentication and command contracts.
+
+### Local Ollama and transcription
 
 Install [Ollama](https://ollama.com/), pull a vision-capable model that fits your hardware (for example `qwen3-vl:8b`), and select it in Settings. Vidac does not download models automatically. Configure a planning model separately; the same vision model may serve both roles.
 
@@ -92,7 +120,7 @@ An external assistant can read the catalogue, write a plan matching `vidac schem
 
 See [architecture](docs/architecture.md), [editor handoff](docs/handoff.md), [agent workflow](docs/agent-workflow.md), and [development](docs/development.md) for contracts and current limitations.
 
-This release is a local web workspace, not a packaged desktop app. It does not embed a Codex login or a subscription-backed inference service; an external assistant can operate its CLI. Looks are basic presets, not automatic camera matching. Native Resolve/FCP import needs a pilot on your editing machine; this repo tests export structure and the Resolve call contract, not live editor behavior. No cloud storage, semantic embeddings or iMovie export is included.
+This release is a local web workspace, not a packaged desktop app. It reuses installed CLI logins for optional AI inference and also supports external assistants through the Vidac CLI. Looks are basic presets, not automatic camera matching. Native Resolve/FCP import needs a pilot on your editing machine; this repo tests export structure and the Resolve call contract, not live editor behavior. No cloud storage, semantic embeddings or iMovie export is included.
 
 ## Verify
 
@@ -101,7 +129,9 @@ uv run pytest
 uv run ruff check .
 uv run ruff format --check .
 npm run check
+npm run check:format
 npm run build
+npm run test:browser
 ```
 
 The media integration tests generate their own videos with FFmpeg, ingest them, validate cut ranges, export timelines and render real previews. They do not require AI models or external services.

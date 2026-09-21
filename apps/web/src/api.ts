@@ -87,12 +87,32 @@ export interface Edit {
   artifacts: Artifact[];
   versions: { revision: number; created_at: string }[];
 }
+export type Provider = 'ollama' | 'codex' | 'claude' | 'opencode';
+export interface ModelCatalogue {
+  provider: Provider;
+  connected: boolean;
+  models: string[];
+  detail: string;
+}
+export const providerLabels: Record<Provider, string> = {
+  ollama: 'Ollama',
+  codex: 'Codex CLI',
+  claude: 'Claude Code',
+  opencode: 'OpenCode',
+};
+export function isAIProvenance(value: string) {
+  return Object.keys(providerLabels).some((provider) => value.startsWith(`${provider}:`));
+}
 export interface Settings {
   scene_threshold: number;
   min_shot_seconds: number;
   select_seconds: number;
   proxy_height: number;
   ollama_url: string;
+  vision_provider: Provider;
+  planning_provider: Provider;
+  allow_remote_ai: boolean;
+  model_timeout_seconds: number;
   vision_model: string;
   planning_model: string;
   transcribe: boolean;

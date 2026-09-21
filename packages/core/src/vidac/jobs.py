@@ -107,11 +107,13 @@ class Worker:
             elif job["kind"] == "relink":
                 result = search_relinks(self.db, Path(payload["path"]), progress, check)
             elif job["kind"] == "annotate":
-                progress(0.1, "Understanding clip with local vision model")
+                progress(0.1, "Understanding clip with the selected vision model")
                 result = annotate_clip(self.workspace, self.db, payload["clip_id"], check)
             elif job["kind"] == "edit":
                 progress(0.1, "Planning your rough cut")
-                plan = build_plan(self.workspace, self.db, CreateEdit.model_validate(payload))
+                plan = build_plan(
+                    self.workspace, self.db, CreateEdit.model_validate(payload), check
+                )
                 check()
                 # Stable ID makes retries safe if a crash happens after the edit commit.
                 edit_id = "edit_" + job_id.removeprefix("job_")

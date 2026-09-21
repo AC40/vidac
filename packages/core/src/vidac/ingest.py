@@ -16,7 +16,7 @@ from vidac.media import (
     thumbnail,
     waveform,
 )
-from vidac.providers import Ollama, transcribe
+from vidac.providers import intelligence, transcribe
 from vidac.relink import fingerprint
 
 Progress = Callable[[float, str], None]
@@ -138,7 +138,9 @@ def ingest(
                     f"Understanding shot {shot_index + 1} of {len(shots)}",
                 )
                 try:
-                    analysis = Ollama(settings).segments(proxy, cache, start, end, fps, check)
+                    analysis = intelligence(settings, "vision", check).segments(
+                        proxy, cache, start, end, fps, check
+                    )
                     proposals = sorted(analysis.segments, key=lambda x: x.start_seconds)
                     if abs(proposals[-1].end_seconds - float((end - start) / rate)) > 0.5:
                         raise ValueError("Visual analysis did not cover the complete window.")
@@ -164,7 +166,7 @@ def ingest(
                                 "annotation": segment.model_dump(
                                     exclude={"start_seconds", "end_seconds"}
                                 ),
-                                "provenance": f"ollama:{settings.vision_model}",
+                                "provenance": f"{settings.vision_provider}:{settings.vision_model}",
                             }
                         )
                         cursor = next_end
@@ -224,6 +226,7 @@ def ingest(
         "shot_detector": "ffmpeg-scene",
         "threshold": settings.scene_threshold,
         "vision_model": settings.vision_model or None,
+        "vision_provider": settings.vision_provider,
         "shot_count": len(shots),
         "transcript_segments": len(transcript),
         "segmentation": "sampled-visual" if settings.vision_model else "shots-and-duration",
@@ -259,7 +262,7 @@ def annotate_clip(workspace: Workspace, db: Database, clip_id: str, check: Check
     clip = db.clip(clip_id)
     asset = db.asset(clip["asset_id"])
     settings = workspace.settings()
-    result = Ollama(settings).segments(
+    result = intelligence(settings, "vision", check).segments(
         Path(asset["proxy_path"]),
         workspace.cache(asset["id"]),
         clip["start_frame"],
@@ -279,7 +282,7 @@ def annotate_clip(workspace: Workspace, db: Database, clip_id: str, check: Check
             description,
             json.dumps(tags),
             json.dumps(annotation),
-            f"ollama:{settings.vision_model}",
+            f"{settings.vision_provider}:{settings.vision_model}",
             clip_id,
         ),
     )

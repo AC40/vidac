@@ -15,7 +15,7 @@ The CLI is the agent interface in this release. An assistant with access to this
 
 Read-only commands emit JSON on stdout. Long-running commands wait by default, with progress on stderr; pass `--no-wait` to return a queued job immediately. `uv run vidac jobs` lists status/errors/output paths. Settings configured in the UI also apply to CLI jobs in the same `VIDAC_WORKSPACE`.
 
-`vidac edit "your brief" --ai` uses the configured local Ollama planner. If an external assistant authors the plan itself, it should use `import-plan` instead; it does not need an additional local model for planning. Visual annotation still requires either the assistant's own inspection or a configured vision provider.
+`vidac edit "your brief" --ai` uses the configured planning provider and model. If an external assistant authors the plan itself, it should use `import-plan` instead; it does not need an additional model for planning. Visual annotation still requires either the assistant's own inspection or a configured vision provider.
 
 ## Minimal plan shape
 

@@ -7,7 +7,7 @@ from typing import Annotated
 
 import typer
 
-from vidac.config import Workspace
+from vidac.config import ProviderName, Settings, Workspace
 from vidac.db import Database
 from vidac.editing import validate_plan
 from vidac.jobs import Worker
@@ -121,6 +121,43 @@ def jobs():
     print_json(db.jobs())
 
 
+@app.command("models")
+def models(provider: ProviderName = "ollama"):
+    """List provider model suggestions without running inference."""
+    from vidac.model_catalogue import models_for
+
+    workspace, _ = context()
+    print_json(models_for(workspace.settings(), provider))
+
+
+@app.command("configure-ai")
+def configure_ai(
+    role: str,
+    provider: ProviderName,
+    model: str,
+    allow_remote: bool = False,
+):
+    """Configure vision or planning. Empty model disables the role.
+
+    CLI providers may send catalogue text and sampled frames to their model service.
+    Use --allow-remote to enable that sharing for this workspace.
+    """
+    if role not in {"vision", "planning"}:
+        raise typer.BadParameter("Role must be vision or planning.")
+    workspace, _ = context()
+    data = workspace.settings().model_dump()
+    data.update({f"{role}_provider": provider, f"{role}_model": model})
+    if allow_remote:
+        data["allow_remote_ai"] = True
+    settings = Settings.model_validate(data)
+    if model:
+        from vidac.providers import intelligence
+
+        intelligence(settings, role)
+    workspace.save_settings(settings)
+    print_json(settings.model_dump())
+
+
 @app.command()
 def edit(
     brief: str,
@@ -132,7 +169,7 @@ def edit(
     ai: bool = False,
     wait: bool = True,
 ):
-    """Assemble a rough cut; --ai uses the configured local planning model."""
+    """Assemble a rough cut; --ai uses the configured planning provider and model."""
     workspace, db = context()
     request = CreateEdit(
         name=name, brief=brief, duration=duration, pace=pace, look=look, aspect=aspect, use_ai=ai

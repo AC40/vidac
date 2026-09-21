@@ -5,8 +5,9 @@ from fractions import Fraction
 
 from vidac.config import Workspace
 from vidac.db import Database
+from vidac.media import Check, noop
 from vidac.models import CreateEdit, EditItem, EditPlan
-from vidac.providers import Ollama
+from vidac.providers import intelligence
 
 SUPPORTED_FPS = {"24/1", "25/1", "30/1", "50/1", "60/1", "24000/1001", "30000/1001", "60000/1001"}
 
@@ -43,7 +44,9 @@ def validate_plan(db: Database, plan: EditPlan) -> EditPlan:
     return plan.model_copy(update={"items": items})
 
 
-def build_plan(workspace: Workspace, db: Database, request: CreateEdit) -> EditPlan:
+def build_plan(
+    workspace: Workspace, db: Database, request: CreateEdit, check: Check = noop
+) -> EditPlan:
     if request.clip_ids:
         candidates = [db.clip(clip_id) for clip_id in dict.fromkeys(request.clip_ids)]
     else:
@@ -118,7 +121,11 @@ def build_plan(workspace: Workspace, db: Database, request: CreateEdit) -> EditP
         planner="offline-assembler",
     )
     if request.use_ai:
-        plan = Ollama(workspace.settings()).plan(request.model_dump(), candidates, plan)
+        settings = workspace.settings()
+        plan = intelligence(settings, "planning", check).plan(
+            request.model_dump(), candidates, plan
+        )
+        check()
         allowed = {c["id"] for c in candidates}
         if any(item.clip_id not in allowed for item in plan.items):
             raise ValueError("The model selected a clip outside your supplied catalogue.")
@@ -130,7 +137,7 @@ def build_plan(workspace: Workspace, db: Database, request: CreateEdit) -> EditP
             for item in plan.items
         ):
             raise ValueError("The model extended a trim outside the described select.")
-        plan.planner = f"ollama:{workspace.settings().planning_model}"
+        plan.planner = f"{settings.planning_provider}:{settings.planning_model}"
         plan.name, plan.brief = request.name, request.brief
         plan.width, plan.height, plan.fps = width, height, fps
     plan = validate_plan(db, plan)

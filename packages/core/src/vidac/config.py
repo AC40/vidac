@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
+
+ProviderName = Literal["ollama", "codex", "claude", "opencode"]
 
 
 class Settings(BaseModel):
@@ -12,11 +15,23 @@ class Settings(BaseModel):
     select_seconds: float = Field(default=8.0, ge=2, le=60)
     proxy_height: int = Field(default=720, ge=240, le=1080)
     ollama_url: str = "http://127.0.0.1:11434"
+    vision_provider: ProviderName = "ollama"
+    planning_provider: ProviderName = "ollama"
+    allow_remote_ai: bool = False
+    model_timeout_seconds: int = Field(default=300, ge=10, le=1800)
     vision_model: str = ""
     planning_model: str = ""
     transcribe: bool = False
     transcription_model: str = "base"
     watch_folders: list[str] = Field(default_factory=list, max_length=20)
+
+    @field_validator("vision_model", "planning_model")
+    @classmethod
+    def model_name(cls, value: str) -> str:
+        value = value.strip()
+        if len(value) > 200 or any(ord(c) < 32 for c in value) or value.startswith("-"):
+            raise ValueError("Use a model ID, not command-line options.")
+        return value
 
     @field_validator("ollama_url")
     @classmethod

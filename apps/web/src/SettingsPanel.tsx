@@ -1,6 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Check, Cpu, Folder, RefreshCw, ScanLine, Settings2 } from 'lucide-react';
-import { api, errorMessage, type Health, type Notify, type Settings } from './api';
+import {
+  api,
+  errorMessage,
+  type Health,
+  type Notify,
+  type Settings,
+  type Provider,
+  type ModelCatalogue,
+  providerLabels,
+} from './api';
 import { Busy } from './components';
 
 export function SettingsPanel({
@@ -16,12 +25,20 @@ export function SettingsPanel({
 }) {
   const [draft, setDraft] = useState(settings);
   const [folders, setFolders] = useState(settings.watch_folders.join('\n'));
-  const [models, setModels] = useState<{ connected: boolean; models: string[] } | null>(null);
+  const [models, setModels] = useState<Partial<Record<Provider, ModelCatalogue>>>({});
   const [busy, setBusy] = useState(false);
+  const [checking, setChecking] = useState(false);
   const check = () => {
-    void api<{ connected: boolean; models: string[] }>('/models')
-      .then(setModels)
-      .catch((e) => notify(errorMessage(e), true));
+    setChecking(true);
+    void Promise.all(
+      (Object.keys(providerLabels) as Provider[]).map(async (provider) => {
+        const result = await api<ModelCatalogue>(`/models?provider=${provider}`);
+        return [provider, result] as const;
+      }),
+    )
+      .then((entries) => setModels(Object.fromEntries(entries)))
+      .catch((e) => notify(errorMessage(e), true))
+      .finally(() => setChecking(false));
   };
   useEffect(check, []);
   async function save() {
@@ -50,7 +67,7 @@ export function SettingsPanel({
         <Settings2 size={23} />
         <div>
           <h2>Your workspace, your machine.</h2>
-          <p>Media stays local. Configure the preparation engine and opt into on-device intelligence.</p>
+          <p>Keep your library on this machine. Choose local models or your installed AI CLIs.</p>
         </div>
       </div>
       <form
@@ -125,62 +142,110 @@ export function SettingsPanel({
         <section className="settings-section">
           <div>
             <Cpu size={22} />
-            <h3>Local intelligence</h3>
+            <h3>Intelligence</h3>
             <p>
-              Ollama provides optional visual descriptions and creative planning. No model is downloaded by
-              Vidac.
+              Choose a provider for each task. Ollama runs locally; CLI providers use their own login and
+              model service.
             </p>
-            <span className={`connection ${models?.connected ? 'connected' : ''}`}>
-              <span className="status-dot" />
-              {models === null
-                ? 'Checking Ollama…'
-                : models.connected
-                  ? 'Ollama connected'
-                  : 'Ollama not connected'}
-            </span>
+            <p className="hint">
+              Using T3 Code? Select the same underlying Codex, Claude Code or OpenCode provider here. T3 Code
+              itself is an agent interface, not an inference model.
+            </p>
           </div>
           <div className="field-stack">
-            <label>
-              Ollama endpoint
+            {(['vision', 'planning'] as const).map((role) => {
+              const provider = draft[`${role}_provider`];
+              const catalogue = models[provider];
+              return (
+                <div className="field-stack" key={role}>
+                  <div className="split-fields">
+                    <label>
+                      {role === 'vision' ? 'Vision provider' : 'Planning provider'}
+                      <select
+                        value={provider}
+                        onChange={(e) =>
+                          setDraft({
+                            ...draft,
+                            [`${role}_provider`]: e.target.value as Provider,
+                            [`${role}_model`]: '',
+                          })
+                        }
+                      >
+                        {(Object.entries(providerLabels) as [Provider, string][]).map(([id, label]) => (
+                          <option key={id} value={id}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      {role === 'vision' ? 'Vision model' : 'Planning model'}
+                      <input
+                        list={`${role}-models`}
+                        maxLength={200}
+                        placeholder={
+                          role === 'vision' ? 'None, shot detection only' : 'None, offline assembly'
+                        }
+                        value={draft[`${role}_model`]}
+                        onChange={(e) => setDraft({ ...draft, [`${role}_model`]: e.target.value })}
+                      />
+                    </label>
+                  </div>
+                  <datalist id={`${role}-models`}>
+                    {catalogue?.models.map((model) => (
+                      <option key={model} value={model} />
+                    ))}
+                  </datalist>
+                  <p className="hint" aria-live="polite">
+                    {catalogue ? catalogue.detail : `Checking ${providerLabels[provider]}…`}
+                    {role === 'vision' && ' Choose a model that accepts images.'}
+                  </p>
+                </div>
+              );
+            })}
+            {(draft.vision_provider === 'ollama' || draft.planning_provider === 'ollama') && (
+              <label>
+                Ollama endpoint
+                <input
+                  type="url"
+                  required
+                  value={draft.ollama_url}
+                  onChange={(e) => setDraft({ ...draft, ollama_url: e.target.value })}
+                />
+              </label>
+            )}
+            <p className="hint">
+              Enter a model ID or choose a suggestion. Leave a model empty to disable that task. Switching
+              providers clears the model. Save before checking a changed Ollama endpoint.
+            </p>
+            <button type="button" className="fit" onClick={check} disabled={checking}>
+              <RefreshCw size={14} /> {checking ? 'Checking providers…' : 'Refresh providers and models'}
+            </button>
+            <label className="check-row">
               <input
-                type="url"
+                type="checkbox"
+                checked={draft.allow_remote_ai}
+                onChange={(e) => setDraft({ ...draft, allow_remote_ai: e.target.checked })}
+              />
+              <span>
+                Allow CLI provider data sharing
+                <small>
+                  Send creative briefs, catalogue descriptions and sampled frames through the selected CLI.
+                  Its account, usage limits and data policy apply. Originals stay on disk.
+                </small>
+              </span>
+            </label>
+            <label>
+              Model timeout · seconds
+              <input
+                type="number"
+                min={10}
+                max={1800}
                 required
-                value={draft.ollama_url}
-                onChange={(e) => setDraft({ ...draft, ollama_url: e.target.value })}
+                value={draft.model_timeout_seconds}
+                onChange={(e) => setDraft({ ...draft, model_timeout_seconds: Number(e.target.value) })}
               />
             </label>
-            <div className="split-fields">
-              <label>
-                Vision model
-                <input
-                  list="installed-models"
-                  placeholder="None — shot detection only"
-                  value={draft.vision_model}
-                  onChange={(e) => setDraft({ ...draft, vision_model: e.target.value })}
-                />
-              </label>
-              <label>
-                Planning model
-                <input
-                  list="installed-models"
-                  placeholder="None — offline assembly"
-                  value={draft.planning_model}
-                  onChange={(e) => setDraft({ ...draft, planning_model: e.target.value })}
-                />
-              </label>
-            </div>
-            <datalist id="installed-models">
-              {models?.models.map((model) => (
-                <option key={model} value={model} />
-              ))}
-            </datalist>
-            <p className="hint">
-              Vision requires an image-capable model, for example qwen3-vl:8b. Install with Ollama first.
-              Leave fields empty to disable AI. Save before checking a changed endpoint.
-            </p>
-            <button type="button" className="fit" onClick={check}>
-              <RefreshCw size={14} /> Refresh installed models
-            </button>
             <label className="check-row">
               <input
                 type="checkbox"

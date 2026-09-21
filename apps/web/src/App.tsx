@@ -1,3 +1,4 @@
+import { isAIProvenance } from './api';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ArrowRight,
@@ -37,8 +38,8 @@ import {
 import { ClipInspector, CreateEditDialog, ImportDialog } from './components';
 import { EditWorkspace } from './EditWorkspace';
 import { SettingsPanel } from './SettingsPanel';
-
 import { RelinkDialog } from './RelinkDialog';
+
 type Page = 'library' | 'edits' | 'queue' | 'settings';
 const titles = {
   library: 'Your footage. Ready for the story.',
@@ -253,7 +254,6 @@ export function App() {
               <Plus size={15} />
             </button>
           </div>
-          {!assets.length && <p className="hint">A home for every angle.</p>}
           {assets.length > 0 && (
             <button onClick={() => relink(null)}>
               Relink media
@@ -262,6 +262,7 @@ export function App() {
                 : ''}
             </button>
           )}
+          {!assets.length && <p className="hint">A home for every angle.</p>}
           {assets.map((asset) => (
             <button
               title={asset.path}
@@ -370,8 +371,10 @@ export function App() {
                 <div className="summary-note">
                   <Sparkles size={18} />
                   <span>
-                    {settings?.vision_model ? 'Local vision analysis enabled' : 'Shot detection, ready to go'}
-                    <small>{settings?.vision_model || 'Add a local AI model for visual descriptions'}</small>
+                    {settings?.vision_model ? 'Vision analysis configured' : 'Shot detection, ready to go'}
+                    <small>
+                      {settings?.vision_model || 'Choose a vision provider and model for descriptions'}
+                    </small>
                   </span>
                 </div>
               </div>
@@ -547,9 +550,7 @@ export function App() {
                         </button>
                         <p className="clip-source">
                           {clip.asset_name}{' '}
-                          <span>
-                            · {clip.provenance.startsWith('ollama') ? 'AI described' : 'Unclassified'}
-                          </span>
+                          <span>· {isAIProvenance(clip.provenance) ? 'AI described' : 'Unclassified'}</span>
                         </p>
                         <div className="clip-tags">
                           {clip.tags.length ? (
@@ -660,7 +661,6 @@ export function App() {
                         <span style={{ width: `${job.progress * 100}%` }} />
                       </div>
                     )}
-                    {job.result?.warnings?.map((warning, i) => (
                     {job.result?.relinked && (
                       <div>
                         <p>
@@ -686,6 +686,7 @@ export function App() {
                         </details>
                       </div>
                     )}
+                    {job.result?.warnings?.map((warning, i) => (
                       <p className="job-warning" key={i}>
                         {warning}
                       </p>
@@ -743,7 +744,6 @@ export function App() {
           </button>
         )}
       </main>
-      {dialog === 'import' && (
       {dialog === 'relink' && (
         <RelinkDialog
           assets={assets}
@@ -754,6 +754,7 @@ export function App() {
           notify={notify}
         />
       )}
+      {dialog === 'import' && (
         <ImportDialog close={() => setDialog(null)} notify={notify} refresh={() => void refresh()} />
       )}
       {dialog === 'edit' && (

@@ -1,3 +1,4 @@
+import { isAIProvenance, providerLabels } from './api';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowUpRight, Check, Film, LoaderCircle, Sparkles, Upload, X } from 'lucide-react';
 import { api, errorMessage, looks, rate, type Clip, type Job, type Notify, type Settings } from './api';
@@ -271,7 +272,7 @@ export function ClipInspector({
         </div>
         <div className="field-stack">
           <span className="eyebrow">
-            {clip.provenance.startsWith('ollama')
+            {isAIProvenance(clip.provenance)
               ? 'AI-described · review suggested'
               : 'Shot detection · unclassified'}
           </span>
@@ -314,7 +315,7 @@ export function ClipInspector({
               ))}
           </div>
           <button onClick={() => void analyze()} disabled={busy}>
-            <Sparkles size={15} /> Analyze with local AI
+            <Sparkles size={15} /> Analyze with AI
           </button>
         </div>
       </div>
@@ -347,6 +348,9 @@ export function CreateEditDialog({
   notify: Notify;
   created: (job: Job) => void;
 }) {
+  const planningEnabled = Boolean(
+    settings?.planning_model && (settings.planning_provider === 'ollama' || settings.allow_remote_ai),
+  );
   const [draft, setDraft] = useState({
     name: 'Morning, in motion',
     brief: '',
@@ -354,7 +358,7 @@ export function CreateEditDialog({
     pace: 'balanced',
     look: 'neutral',
     aspect: '16:9',
-    use_ai: Boolean(settings?.planning_model),
+    use_ai: planningEnabled,
   });
   const [busy, setBusy] = useState(false);
   async function submit() {
@@ -445,12 +449,16 @@ export function CreateEditDialog({
           <input
             type="checkbox"
             checked={draft.use_ai}
-            disabled={!settings?.planning_model}
+            disabled={!planningEnabled}
             onChange={(e) => setDraft({ ...draft, use_ai: e.target.checked })}
           />
           <span>
-            Use local AI for creative planning{' '}
-            <small>{settings?.planning_model || 'Choose a planning model in Settings to enable.'}</small>
+            Use AI for creative planning{' '}
+            <small>
+              {settings?.planning_model
+                ? `${providerLabels[settings.planning_provider]} · ${settings.planning_model}${planningEnabled ? '' : ' · Enable CLI data sharing in Settings'}`
+                : 'Choose a planning model in Settings to enable.'}
+            </small>
           </span>
         </label>
         {!draft.use_ai && (
@@ -460,7 +468,11 @@ export function CreateEditDialog({
           </p>
         )}
         <div className="modal-footer">
-          <span className="hint">No media leaves this machine.</span>
+          <span className="hint">
+            {draft.use_ai && settings?.planning_provider !== 'ollama'
+              ? 'The selected CLI receives your brief and catalogue descriptions.'
+              : 'This edit is planned on your machine.'}
+          </span>
           <button className="primary" disabled={busy}>
             {busy ? (
               <Busy>Starting…</Busy>

@@ -45,7 +45,7 @@ npm run check:format
 npm run build
 ```
 
-Run only non-media tests with `uv run pytest -m 'not media'`. Media tests create their own synthetic assets under pytest's temporary directory and perform real ingest, deduplication, proxy generation, cut detection, CFR conformance, export and preview rendering. They skip if FFmpeg/ffprobe is absent. They never inspect your footage. Model tests stub responses; Resolve tests use a contract double.
+Run only non-media tests with `uv run pytest -m 'not media'`. Media tests create their own synthetic assets under pytest's temporary directory and perform real ingest, deduplication, proxy generation, cut detection, CFR conformance, export and preview rendering. They skip if FFmpeg/ffprobe is absent. They never inspect your footage. Model tests stub responses; CLI transport tests also use local Python subprocesses to check cancellation, timeouts and error handling. They do not call model services, upload footage or verify live account access. Resolve tests use a contract double.
 
 Browser tests use a separate fresh temporary workspace and port 8742. Build the frontend first:
 

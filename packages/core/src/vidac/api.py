@@ -8,7 +8,6 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
 
-import httpx
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -17,12 +16,14 @@ from pydantic import BaseModel, Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from vidac import __version__
-from vidac.config import Settings, Workspace
+from vidac.config import ProviderName, Settings, Workspace
 from vidac.db import Database, uid
 from vidac.editing import validate_plan
 from vidac.jobs import Worker
 from vidac.media import VIDEO_EXTENSIONS, files_at
+from vidac.model_catalogue import models_for
 from vidac.models import ClipPatch, CreateEdit, EditPlan, SaveEdit
+from vidac.providers import intelligence
 from vidac.relink import relink_file
 
 
@@ -204,8 +205,10 @@ def create_app(workspace: Workspace | None = None, run_worker: bool = True) -> F
     @app.post("/api/clips/{clip_id}/analyze", status_code=202)
     def analyze(clip_id: str):
         db.clip(clip_id)
-        if not workspace.settings().vision_model:
-            raise ValueError("Choose a local vision model in Settings first.")
+        try:
+            intelligence(workspace.settings(), "vision")
+        except RuntimeError as exc:
+            raise HTTPException(400, str(exc)) from exc
         return db.enqueue("annotate", {"clip_id": clip_id})
 
     @app.post("/api/assets/{asset_id}/relink")
@@ -279,8 +282,11 @@ def create_app(workspace: Workspace | None = None, run_worker: bool = True) -> F
     def create_edit(request: CreateEdit):
         if not db.clips(limit=1):
             raise ValueError("Import footage before creating an edit.")
-        if request.use_ai and not workspace.settings().planning_model:
-            raise ValueError("Choose a planning model in Settings first.")
+        if request.use_ai:
+            try:
+                intelligence(workspace.settings(), "planning")
+            except RuntimeError as exc:
+                raise HTTPException(400, str(exc)) from exc
         return db.enqueue("edit", request.model_dump())
 
     @app.get("/api/edits/{edit_id}")
@@ -334,13 +340,8 @@ def create_app(workspace: Workspace | None = None, run_worker: bool = True) -> F
         return settings
 
     @app.get("/api/models")
-    def models():
-        try:
-            response = httpx.get(f"{workspace.settings().ollama_url}/api/tags", timeout=3)
-            response.raise_for_status()
-            return {"connected": True, "models": [m["name"] for m in response.json()["models"]]}
-        except (httpx.HTTPError, KeyError, ValueError):
-            return {"connected": False, "models": []}
+    def models(provider: ProviderName = "ollama"):
+        return models_for(workspace.settings(), provider)
 
     @app.get("/api/schema/edit-plan")
     def schema():

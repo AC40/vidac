@@ -1,3 +1,4 @@
+import { isAIProvenance } from './api';
 import { useEffect, useState } from 'react';
 import { ArrowDown, ArrowUp, Check, Download, Film, History, Play, Plus, Save, Trash2 } from 'lucide-react';
 import {
@@ -296,8 +297,8 @@ function Timeline({
             <span className="pill">{plan.items.length} shots</span>
           </div>
           <p className="hint">
-            {plan.planner.startsWith('ollama')
-              ? 'Planned with local AI. Review ordering and trims.'
+            {isAIProvenance(plan.planner)
+              ? 'Planned with AI. Review ordering and trims.'
               : 'Offline assembly + your editorial decisions.'}{' '}
             Brief changes are notes for this edit; create a new cut to re-plan.
           </p>
