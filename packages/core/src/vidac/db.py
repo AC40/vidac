@@ -70,7 +70,15 @@ CREATE TABLE IF NOT EXISTS artifacts (
 CREATE TABLE IF NOT EXISTS watched_files (
  path TEXT PRIMARY KEY, size INTEGER NOT NULL, mtime REAL NOT NULL, job_id TEXT NOT NULL
 );
-PRAGMA user_version = 2;
+CREATE TABLE IF NOT EXISTS inference_usage (
+ id TEXT PRIMARY KEY, job_id TEXT REFERENCES jobs(id), task TEXT NOT NULL,
+ provider TEXT NOT NULL, model TEXT NOT NULL, asset_id TEXT,
+ start_frame INTEGER, end_frame INTEGER, input_tokens INTEGER, output_tokens INTEGER,
+ reasoning_tokens INTEGER, cache_read_tokens INTEGER, cache_write_tokens INTEGER,
+ cost_usd REAL, created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS inference_usage_job ON inference_usage(job_id, created_at);
+PRAGMA user_version = 3;
 """
 
 
@@ -79,7 +87,7 @@ class Database:
         self.path = path
         with self.connect() as conn:
             version = conn.execute("PRAGMA user_version").fetchone()[0]
-            if version > 2:
+            if version > 3:
                 raise RuntimeError("This library was created by a newer version of Vidac.")
             # Schema, triggers, derived search index and version commit together.
             before = (
@@ -193,6 +201,52 @@ class Database:
             self.job(row["id"])
             for row in self.all("SELECT id FROM jobs ORDER BY created_at DESC LIMIT 100")
         ]
+
+    def record_inference(
+        self,
+        *,
+        job_id: str,
+        task: str,
+        provider: str,
+        model: str,
+        asset_id: str,
+        start_frame: int,
+        end_frame: int,
+        usage: dict,
+    ) -> None:
+        self.execute(
+            "INSERT INTO inference_usage(id,job_id,task,provider,model,asset_id,start_frame,end_frame,"
+            "input_tokens,output_tokens,reasoning_tokens,cache_read_tokens,cache_write_tokens,cost_usd,created_at) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                uid("usage"),
+                job_id,
+                task,
+                provider,
+                model,
+                asset_id,
+                start_frame,
+                end_frame,
+                usage.get("input_tokens"),
+                usage.get("output_tokens"),
+                usage.get("reasoning_tokens"),
+                usage.get("cache_read_tokens"),
+                usage.get("cache_write_tokens"),
+                usage.get("cost_usd"),
+                now(),
+            ),
+        )
+
+    def inference_totals(self, job_id: str) -> dict:
+        row = self.one(
+            "SELECT count(*) AS requests, sum(input_tokens) AS input_tokens, "
+            "sum(output_tokens) AS output_tokens, sum(reasoning_tokens) AS reasoning_tokens, "
+            "sum(cache_read_tokens) AS cache_read_tokens, "
+            "sum(cache_write_tokens) AS cache_write_tokens, sum(cost_usd) AS cost_usd "
+            "FROM inference_usage WHERE job_id=?",
+            (job_id,),
+        )
+        return {key: value for key, value in (row or {}).items() if value is not None}
 
     def edit(self, edit_id: str, revision: int | None = None):
         row = self.one("SELECT * FROM edits WHERE id=?", (edit_id,))

@@ -488,9 +488,18 @@ input[type='number'] {
   color: #858f7c;
   margin-top: 9px;
 }
-.page-heading > .primary {
+.page-heading > .primary,
+.heading-actions > .primary {
   white-space: nowrap;
   padding: 11px 16px;
+}
+.heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.heading-actions > button {
+  white-space: nowrap;
 }
 .library-summary {
   display: flex;
@@ -1666,6 +1675,23 @@ input[type='number'] {
   margin-top: 9px;
   font-size: 10px;
 }
+.analysis-result {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid #405733;
+  border-radius: 6px;
+  background: #182214;
+}
+.analysis-result p {
+  color: #b4ce9d;
+  font-size: 10px;
+}
+.analysis-result small {
+  display: block;
+  margin-top: 4px;
+  color: #789565;
+  font-size: 9px;
+}
 .progress {
   height: 3px;
   background: #3b552b;
@@ -1929,6 +1955,9 @@ input[type='number'] {
     padding: 9px 10px;
     margin-top: 20px;
   }
+  .heading-actions {
+    margin-top: 20px;
+  }
   .library-summary {
     gap: 20px;
     justify-content: space-between;
@@ -2078,6 +2107,11 @@ input[type='number'] {
   }
   .page-heading > .primary {
     margin: 0;
+  }
+  .heading-actions {
+    width: 100%;
+    margin: 0;
+    flex-wrap: wrap;
   }
   .page-heading .eyebrow {
     font-size: 8px;

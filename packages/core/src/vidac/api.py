@@ -35,6 +35,10 @@ class RelinkRequest(BaseModel):
     path: str
 
 
+class AnalyzeRequest(BaseModel):
+    asset_ids: list[str] = Field(default_factory=list, max_length=500)
+
+
 class ExportRequest(BaseModel):
     format: str = "otio"
     revision: int | None = Field(default=None, ge=1)
@@ -120,6 +124,9 @@ def create_app(workspace: Workspace | None = None, run_worker: bool = True) -> F
         return {
             "assets": db.one("SELECT count(*) AS n FROM assets WHERE status='ready'")["n"],
             "clips": db.one("SELECT count(*) AS n FROM clips")["n"],
+            "unclassified": db.one(
+                "SELECT count(*) AS n FROM clips WHERE provenance='shot-detector'"
+            )["n"],
             "favorites": db.one("SELECT count(*) AS n FROM clips WHERE favorite=1")["n"],
             "duration": db.one(
                 "SELECT coalesce(sum(duration),0) AS n FROM assets WHERE status='ready'"
@@ -210,6 +217,25 @@ def create_app(workspace: Workspace | None = None, run_worker: bool = True) -> F
         except RuntimeError as exc:
             raise HTTPException(400, str(exc)) from exc
         return db.enqueue("annotate", {"clip_id": clip_id})
+
+    @app.post("/api/analyze", status_code=202)
+    def analyze_unclassified(request: AnalyzeRequest):
+        settings = workspace.settings()
+        try:
+            intelligence(settings, "vision")
+            if settings.vision_review_model:
+                intelligence(settings, "vision_review")
+        except (RuntimeError, ValueError) as exc:
+            raise HTTPException(400, str(exc)) from exc
+        asset_ids = list(dict.fromkeys(request.asset_ids))
+        for asset_id in asset_ids:
+            db.asset(asset_id)
+        active = db.one(
+            "SELECT id FROM jobs WHERE kind='analyze-library' AND status IN ('queued','running')"
+        )
+        if active:
+            raise ValueError("A library analysis job is already queued or running.")
+        return db.enqueue("analyze-library", {"asset_ids": asset_ids})
 
     @app.post("/api/assets/{asset_id}/relink")
     def relink(asset_id: str, request: RelinkRequest):

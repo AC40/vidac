@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 from vidac.api import create_app
+from vidac.config import Settings
 from vidac.editing import build_plan
 from vidac.jobs import Cancelled, Worker
 from vidac.models import CreateEdit
@@ -81,6 +82,15 @@ def test_enqueue_cancel_retry(client, workspace, seeded):
     edit = client.get(f"/api/edits/{done['result']['edit_id']}").json()
     assert edit["revision"] == 1
     assert client.post(f"/api/jobs/{job['id']}/retry").status_code == 400
+
+
+def test_enqueue_library_analysis_is_unique(client, workspace):
+    workspace.save_settings(Settings(vision_model="vision-test"))
+    queued = client.post("/api/analyze", json={"asset_ids": ["asset_0"]})
+    assert queued.status_code == 202
+    assert queued.json()["kind"] == "analyze-library"
+    assert client.post("/api/analyze", json={"asset_ids": []}).status_code == 400
+    assert client.post("/api/analyze", json={"asset_ids": ["missing"]}).status_code == 404
 
 
 def test_api_revision_conflict_and_export_snapshot(client, workspace, seeded):

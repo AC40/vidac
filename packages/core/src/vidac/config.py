@@ -16,16 +16,19 @@ class Settings(BaseModel):
     proxy_height: int = Field(default=720, ge=240, le=1080)
     ollama_url: str = "http://127.0.0.1:11434"
     vision_provider: ProviderName = "ollama"
+    vision_review_provider: ProviderName = "codex"
     planning_provider: ProviderName = "ollama"
     allow_remote_ai: bool = False
     model_timeout_seconds: int = Field(default=300, ge=10, le=1800)
     vision_model: str = ""
+    vision_review_model: str = ""
+    vision_review_threshold: float = Field(default=0.7, ge=0, le=1)
     planning_model: str = ""
     transcribe: bool = False
     transcription_model: str = "base"
     watch_folders: list[str] = Field(default_factory=list, max_length=20)
 
-    @field_validator("vision_model", "planning_model")
+    @field_validator("vision_model", "vision_review_model", "planning_model")
     @classmethod
     def model_name(cls, value: str) -> str:
         value = value.strip()

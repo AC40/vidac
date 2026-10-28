@@ -72,6 +72,7 @@ class Annotation(BaseModel):
 class SemanticSegment(Annotation):
     start_seconds: float = Field(ge=0)
     end_seconds: float = Field(gt=0)
+    confidence: float = Field(default=0.5, ge=0, le=1)
 
 
 class SegmentAnalysis(BaseModel):

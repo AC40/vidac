@@ -60,6 +60,7 @@ export function App() {
   const [stats, setStats] = useState<Stats>({
     assets: 0,
     clips: 0,
+    unclassified: 0,
     favorites: 0,
     duration: 0,
     edits: 0,
@@ -173,6 +174,28 @@ export function App() {
     try {
       await api(path, 'POST');
       notify(message);
+      void refresh();
+    } catch (error) {
+      notify(errorMessage(error), true);
+    }
+  }
+  async function analyzeLibrary() {
+    if (!settings?.vision_model) {
+      notify('Choose a classification provider and model in Settings first.', true);
+      return;
+    }
+    const scope = sourceAsset ? sourceAsset.name : `${stats.unclassified} unclassified selects`;
+    const provider = `${settings.vision_provider}:${settings.vision_model}`;
+    if (
+      !window.confirm(
+        `Analyze ${scope} with ${provider}? Sampled frames will be sent through the configured CLI and may incur provider charges.`,
+      )
+    )
+      return;
+    try {
+      await api<Job>('/analyze', 'POST', { asset_ids: sourceAsset ? [sourceAsset.id] : [] });
+      notify('Library analysis queued. Track progress and reported cost in Activity.');
+      navigate('queue');
       void refresh();
     } catch (error) {
       notify(errorMessage(error), true);
@@ -334,9 +357,22 @@ export function App() {
               </p>
             </div>
             {page === 'library' ? (
-              <button className="primary" onClick={() => setDialog('import')}>
-                <Plus size={17} /> Import footage
-              </button>
+              <div className="heading-actions">
+                <button
+                  onClick={() => void analyzeLibrary()}
+                  disabled={!stats.unclassified || active.some((job) => job.kind === 'analyze-library')}
+                  title={
+                    settings?.vision_model
+                      ? 'Describe unclassified selects in 30-second source windows'
+                      : 'Configure a classification model in Settings first'
+                  }
+                >
+                  <Sparkles size={16} /> Analyze unclassified
+                </button>
+                <button className="primary" onClick={() => setDialog('import')}>
+                  <Plus size={17} /> Import footage
+                </button>
+              </div>
             ) : page === 'edits' ? (
               <button className="primary" disabled={!clips.length} onClick={() => setDialog('edit')}>
                 <Plus size={17} /> New rough cut
@@ -373,7 +409,9 @@ export function App() {
                   <span>
                     {settings?.vision_model ? 'Vision analysis configured' : 'Shot detection, ready to go'}
                     <small>
-                      {settings?.vision_model || 'Choose a vision provider and model for descriptions'}
+                      {settings?.vision_model
+                        ? `${stats.unclassified} unclassified · ${settings.vision_model}`
+                        : 'Choose a classification provider and model for descriptions'}
                     </small>
                   </span>
                 </div>
@@ -650,7 +688,9 @@ export function App() {
                                 ? 'Relink original media'
                                 : job.kind === 'annotate'
                                   ? 'Analyze clip'
-                                  : `Export ${job.payload.format || 'edit'}`}
+                                  : job.kind === 'analyze-library'
+                                    ? 'Analyze unclassified library'
+                                    : `Export ${job.payload.format || 'edit'}`}
                       </h3>
                       <span className={`job-state ${job.status}`}>{job.status}</span>
                     </div>
@@ -691,6 +731,23 @@ export function App() {
                         {warning}
                       </p>
                     ))}
+                    {job.kind === 'analyze-library' && job.result?.clips_updated !== undefined && (
+                      <div className="analysis-result">
+                        <p>
+                          {job.result.clips_updated} clips described across {job.result.windows || 0} windows
+                          {job.result.reviewed_windows
+                            ? ` · ${job.result.reviewed_windows} reviewed by fallback`
+                            : ''}
+                          {job.result.failed_windows ? ` · ${job.result.failed_windows} windows failed` : ''}
+                        </p>
+                        <small>
+                          {job.result.usage?.requests || 0} model requests
+                          {job.result.usage?.cost_usd !== undefined
+                            ? ` · $${job.result.usage.cost_usd.toFixed(4)} reported cost`
+                            : ' · provider did not report cost'}
+                        </small>
+                      </div>
+                    )}
                     <small>{new Date(job.created_at).toLocaleString()}</small>
                   </div>
                   <div className="job-actions">

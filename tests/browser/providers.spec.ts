@@ -24,6 +24,8 @@ test('choose independent AI providers and models, persist settings, and clear in
     await page.getByLabel('Planning model', { exact: true }).fill('chosen-codex-model');
     await page.getByRole('combobox', { name: 'Vision provider', exact: true }).selectOption('opencode');
     await page.getByLabel('Vision model', { exact: true }).fill('provider/vision-model');
+    await page.getByLabel('Vision review model', { exact: true }).fill('review-codex-model');
+    await page.getByLabel('Escalate below confidence').fill('0.65');
     await page.getByRole('checkbox', { name: /Allow CLI provider data sharing/ }).check();
     await page.getByLabel('Model timeout · seconds').fill('120');
     await page.getByRole('button', { name: 'Save settings' }).click();
@@ -33,12 +35,15 @@ test('choose independent AI providers and models, persist settings, and clear in
     await expect(page.getByRole('combobox', { name: 'Planning provider', exact: true })).toHaveValue('codex');
     await expect(page.getByLabel('Planning model', { exact: true })).toHaveValue('chosen-codex-model');
     await expect(page.getByLabel('Vision model', { exact: true })).toHaveValue('provider/vision-model');
+    await expect(page.getByLabel('Vision review model', { exact: true })).toHaveValue('review-codex-model');
+    await expect(page.getByLabel('Escalate below confidence')).toHaveValue('0.65');
     await expect(page.getByLabel('Model timeout · seconds')).toHaveValue('120');
     await expect(page.getByText(/Using T3 Code/)).toBeVisible();
     await page.screenshot({ path: 'test-results/settings-providers.png', fullPage: true });
     await page.getByRole('combobox', { name: 'Planning provider', exact: true }).selectOption('claude');
     await expect(page.getByLabel('Planning model', { exact: true })).toHaveValue('');
     await expect(page.getByLabel('Vision model', { exact: true })).toHaveValue('provider/vision-model');
+    await expect(page.getByLabel('Vision review model', { exact: true })).toHaveValue('review-codex-model');
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.getByRole('combobox', { name: 'Planning provider', exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);

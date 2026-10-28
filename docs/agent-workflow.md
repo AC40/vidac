@@ -17,6 +17,8 @@ Read-only commands emit JSON on stdout. Long-running commands wait by default, w
 
 `vidac edit "your brief" --ai` uses the configured planning provider and model. If an external assistant authors the plan itself, it should use `import-plan` instead; it does not need an additional model for planning. Visual annotation still requires either the assistant's own inspection or a configured vision provider.
 
+`vidac analyze` describes existing unclassified clips in 30-second source windows. Pass `--asset-id ASSET_ID` one or more times to limit the job. It preserves clip IDs, ranges, manual metadata, and saved edit revisions. Configure `vision-review` to retry low-confidence or failed windows with a second model. Provider-reported usage and cost are stored with the job; a missing cost means the CLI did not report one, not that the request was free.
+
 ## Minimal plan shape
 
 Substitute real IDs and frame ranges from your catalogue; these placeholders are intentionally not ingestible footage:

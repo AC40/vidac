@@ -8,6 +8,7 @@ from pathlib import Path
 
 from filelock import FileLock, Timeout
 
+from vidac.classification import analyze_library
 from vidac.config import Workspace
 from vidac.db import Database, now
 from vidac.editing import build_plan
@@ -109,6 +110,15 @@ class Worker:
             elif job["kind"] == "annotate":
                 progress(0.1, "Understanding clip with the selected vision model")
                 result = annotate_clip(self.workspace, self.db, payload["clip_id"], check)
+            elif job["kind"] == "analyze-library":
+                result = analyze_library(
+                    self.workspace,
+                    self.db,
+                    job_id,
+                    payload.get("asset_ids", []),
+                    progress,
+                    check,
+                )
             elif job["kind"] == "edit":
                 progress(0.1, "Planning your rough cut")
                 plan = build_plan(

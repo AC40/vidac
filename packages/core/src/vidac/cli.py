@@ -121,6 +121,23 @@ def jobs():
     print_json(db.jobs())
 
 
+@app.command("analyze")
+def analyze(asset_id: list[str] | None = None, wait: bool = True):
+    """Describe unclassified clips in efficient 30-second source windows."""
+    from vidac.providers import intelligence
+
+    workspace, db = context()
+    settings = workspace.settings()
+    intelligence(settings, "vision")
+    if settings.vision_review_model:
+        intelligence(settings, "vision_review")
+    selected = list(dict.fromkeys(asset_id or []))
+    for value in selected:
+        db.asset(value)
+    job = db.enqueue("analyze-library", {"asset_ids": selected})
+    wait_for(workspace, db, [job]) if wait else print_json(job)
+
+
 @app.command("models")
 def models(provider: ProviderName = "ollama"):
     """List provider model suggestions without running inference."""
@@ -137,13 +154,14 @@ def configure_ai(
     model: str,
     allow_remote: bool = False,
 ):
-    """Configure vision or planning. Empty model disables the role.
+    """Configure vision, vision-review or planning. Empty model disables the role.
 
     CLI providers may send catalogue text and sampled frames to their model service.
     Use --allow-remote to enable that sharing for this workspace.
     """
-    if role not in {"vision", "planning"}:
-        raise typer.BadParameter("Role must be vision or planning.")
+    role = role.replace("-", "_")
+    if role not in {"vision", "vision_review", "planning"}:
+        raise typer.BadParameter("Role must be vision, vision-review or planning.")
     workspace, _ = context()
     data = workspace.settings().model_dump()
     data.update({f"{role}_provider": provider, f"{role}_model": model})

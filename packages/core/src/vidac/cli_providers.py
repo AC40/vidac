@@ -173,3 +173,39 @@ def parse_events(provider: str, raw: str) -> dict:
     return json_object(
         "".join(e.get("part", {}).get("text", "") for e in events if e.get("type") == "text")
     )
+
+
+def event_usage(provider: str, raw: str) -> dict:
+    """Return normalized usage fields when a CLI includes them in its event stream."""
+    try:
+        events = [json.loads(line) for line in raw.splitlines() if line.strip()]
+    except (json.JSONDecodeError, TypeError):
+        return {}
+    if not all(isinstance(event, dict) for event in events):
+        return {}
+    if provider == "claude":
+        results = [event for event in events if event.get("type") == "result"]
+        source = results[-1] if results else {}
+        tokens = source.get("usage") if isinstance(source.get("usage"), dict) else {}
+        cost = source.get("total_cost_usd")
+    else:
+        finishes = [event for event in events if event.get("type") == "step_finish"]
+        source = finishes[-1].get("part", {}) if finishes else {}
+        tokens = source.get("tokens") if isinstance(source.get("tokens"), dict) else {}
+        cost = source.get("cost")
+    cache = tokens.get("cache") if isinstance(tokens.get("cache"), dict) else {}
+
+    def number(value):
+        return value if isinstance(value, int | float) and value >= 0 else None
+
+    usage = {
+        "input_tokens": number(tokens.get("input") or tokens.get("input_tokens")),
+        "output_tokens": number(tokens.get("output") or tokens.get("output_tokens")),
+        "reasoning_tokens": number(tokens.get("reasoning") or tokens.get("reasoning_tokens")),
+        "cache_read_tokens": number(cache.get("read") or tokens.get("cache_read_input_tokens")),
+        "cache_write_tokens": number(
+            cache.get("write") or tokens.get("cache_creation_input_tokens")
+        ),
+        "cost_usd": number(cost),
+    }
+    return {key: value for key, value in usage.items() if value is not None}

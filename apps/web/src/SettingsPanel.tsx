@@ -53,7 +53,7 @@ export function SettingsPanel({
       });
       setDraft(next);
       refresh();
-      notify('Workspace settings saved. Analysis changes apply to future imports.');
+      notify('Workspace settings saved. Analysis changes apply to new jobs.');
       check();
     } catch (error) {
       notify(errorMessage(error), true);
@@ -153,14 +153,16 @@ export function SettingsPanel({
             </p>
           </div>
           <div className="field-stack">
-            {(['vision', 'planning'] as const).map((role) => {
+            {(['vision', 'vision_review', 'planning'] as const).map((role) => {
               const provider = draft[`${role}_provider`];
               const catalogue = models[provider];
+              const label =
+                role === 'vision' ? 'Vision' : role === 'vision_review' ? 'Vision review' : 'Planning';
               return (
                 <div className="field-stack" key={role}>
                   <div className="split-fields">
                     <label>
-                      {role === 'vision' ? 'Vision provider' : 'Planning provider'}
+                      {label} provider
                       <select
                         value={provider}
                         onChange={(e) =>
@@ -179,12 +181,16 @@ export function SettingsPanel({
                       </select>
                     </label>
                     <label>
-                      {role === 'vision' ? 'Vision model' : 'Planning model'}
+                      {label} model
                       <input
                         list={`${role}-models`}
                         maxLength={200}
                         placeholder={
-                          role === 'vision' ? 'None, shot detection only' : 'None, offline assembly'
+                          role === 'vision'
+                            ? 'None, shot detection only'
+                            : role === 'vision_review'
+                              ? 'None, no escalation'
+                              : 'None, offline assembly'
                         }
                         value={draft[`${role}_model`]}
                         onChange={(e) => setDraft({ ...draft, [`${role}_model`]: e.target.value })}
@@ -198,12 +204,30 @@ export function SettingsPanel({
                   </datalist>
                   <p className="hint" aria-live="polite">
                     {catalogue ? catalogue.detail : `Checking ${providerLabels[provider]}…`}
-                    {role === 'vision' && ' Choose a model that accepts images.'}
+                    {role !== 'planning' && ' Choose a model that accepts images.'}
                   </p>
+                  {role === 'vision_review' && draft.vision_review_model && (
+                    <label>
+                      Escalate below confidence
+                      <input
+                        type="number"
+                        min={0}
+                        max={1}
+                        step={0.05}
+                        required
+                        value={draft.vision_review_threshold}
+                        onChange={(e) =>
+                          setDraft({ ...draft, vision_review_threshold: Number(e.target.value) })
+                        }
+                      />
+                    </label>
+                  )}
                 </div>
               );
             })}
-            {(draft.vision_provider === 'ollama' || draft.planning_provider === 'ollama') && (
+            {(draft.vision_provider === 'ollama' ||
+              draft.vision_review_provider === 'ollama' ||
+              draft.planning_provider === 'ollama') && (
               <label>
                 Ollama endpoint
                 <input
@@ -217,6 +241,10 @@ export function SettingsPanel({
             <p className="hint">
               Enter a model ID or choose a suggestion. Leave a model empty to disable that task. Switching
               providers clears the model. Save before checking a changed Ollama endpoint.
+            </p>
+            <p className="hint">
+              Library analysis uses the classification model first. Windows below the confidence threshold, or
+              windows that fail validation, are retried with the review fallback.
             </p>
             <button type="button" className="fit" onClick={check} disabled={checking}>
               <RefreshCw size={14} /> {checking ? 'Checking providers…' : 'Refresh providers and models'}

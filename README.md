@@ -58,7 +58,7 @@ Relinking updates the source location without moving files or changing clip IDs,
 
 ## AI providers
 
-Choose **Vision provider** and **Planning provider** independently in Settings, then enter a model ID or choose a suggestion. Empty model fields disable that task. Switching providers clears the model to avoid carrying an incompatible ID across services. Existing workspaces keep Ollama as their default.
+Choose classification, optional review fallback, and planning providers independently in Settings, then enter a model ID or choose a suggestion. Empty model fields disable that task. Switching providers clears the model to avoid carrying an incompatible ID across services. Existing workspaces keep Ollama as their classification and planning default.
 
 | Provider | Setup on the machine running Vidac | Model selection |
 | --- | --- | --- |
@@ -69,7 +69,7 @@ Choose **Vision provider** and **Planning provider** independently in Settings, 
 
 Use current CLIs. Vidac calls their non-interactive interfaces and reuses their authentication; it does not extract login tokens or implement subscription billing. Your CLI account controls model access, usage limits and charges. A detected executable or suggested model does not prove authentication or entitlement. Codex uses its saved CLI login, including ChatGPT subscription access when available. No separate API key is required by Vidac.
 
-Enable **Allow CLI provider data sharing** before using a CLI provider. Planning sends your creative brief and catalogue descriptions. Vision sends sampled JPEG frames. Original video files stay on disk. The selected provider's data policies apply, and OpenCode may retain local sessions. Vidac never falls back to another provider automatically.
+Enable **Allow CLI provider data sharing** before using a CLI provider. Planning sends your creative brief and catalogue descriptions. Vision sends sampled JPEG frames. Original video files stay on disk. The selected provider's data policies apply, and OpenCode may retain local sessions. A configured review fallback receives only low-confidence or failed vision windows.
 
 [T3 Code](https://github.com/pingdotgg/t3code) controls underlying agent CLIs. Select the same Codex, Claude Code or OpenCode provider in Vidac; there is no separate T3 inference adapter or model catalogue.
 
@@ -77,6 +77,8 @@ Enable **Allow CLI provider data sharing** before using a CLI provider. Planning
 uv run vidac models --provider codex
 uv run vidac configure-ai planning codex YOUR_MODEL_ID --allow-remote
 uv run vidac configure-ai vision claude sonnet --allow-remote
+uv run vidac configure-ai vision-review codex YOUR_MODEL_ID --allow-remote
+uv run vidac analyze
 uv run vidac edit "A calm morning routine" --ai
 ```
 
@@ -92,7 +94,7 @@ Install [Ollama](https://ollama.com/), pull a vision-capable model that fits you
 ollama pull qwen3-vl:8b
 ```
 
-New imports are analyzed when a vision model is configured. Existing clips can be annotated from the inspector. Analysis uses up to twelve timestamped frames per window, so it can miss quick actions; all results remain editable. Model failures preserve unclassified selects and appear as job warnings. With no model, the application explicitly uses camera cuts and duration-based selects; offline assembly uses keyword matching and pacing rather than pretending to understand the creative brief.
+New imports are analyzed when a vision model is configured. For existing footage, **Analyze unclassified** processes 30-second source windows and maps the results onto existing virtual clips without changing their IDs or ranges. A configured review model retries windows below the confidence threshold or windows that fail validation. The activity queue records provider-reported token usage and cost when the CLI supplies it. Analysis uses up to twelve timestamped frames per window, so it can miss quick actions; all results remain editable. Model failures preserve unclassified selects and appear as job warnings. With no model, the application explicitly uses camera cuts and duration-based selects; offline assembly uses keyword matching and pacing rather than pretending to understand the creative brief.
 
 To enable speech transcription:
 

@@ -9,7 +9,14 @@ from pathlib import Path
 
 import httpx
 
-from vidac.cli_providers import cli_executable, json_object, parse_events, run_cli, strict_schema
+from vidac.cli_providers import (
+    cli_executable,
+    event_usage,
+    json_object,
+    parse_events,
+    run_cli,
+    strict_schema,
+)
 from vidac.config import Settings
 from vidac.media import Check, noop, thumbnail
 from vidac.models import EditPlan, SegmentAnalysis
@@ -21,6 +28,7 @@ class Intelligence:
     def __init__(self, settings: Settings, check: Check = noop):
         self.settings = settings
         self.check = check
+        self.last_usage: dict = {}
 
     def generate(self, model: str, prompt: str, schema: dict, images: list[Path] | None = None):
         raise NotImplementedError
@@ -29,6 +37,7 @@ class Intelligence:
         self, proxy: Path, cache: Path, start: int, end: int, fps: str, check: Check = noop
     ) -> SegmentAnalysis:
         self.check = check
+        self.last_usage = {}
         rate = Fraction(fps)
         duration = float((end - start) / rate)
         # Up to twelve time-stamped frames per 30-second window. This is sampled
@@ -48,6 +57,8 @@ class Intelligence:
             "last. Do not invent unseen events. If uncertain, describe only observable content. "
             "Give each segment a short useful editorial title, description, tags, activity, setting, "
             "shot_size, camera_motion and observable quality_notes. Do not identify people's names. "
+            "Give each segment a confidence from 0 to 1. Use a lower value when sampled frames do "
+            "not show enough evidence for a specific classification. "
             "Only split if there is clear evidence of different activity or camera setup. "
             "Return the requested JSON schema."
         )
@@ -240,6 +251,7 @@ class CLIProvider(Intelligence):
                 timeout=self.settings.model_timeout_seconds,
                 check=self.check,
             )
+            self.last_usage = event_usage(self.provider, raw)
             try:
                 if self.provider == "codex":
                     if not output_path.is_file() or output_path.stat().st_size > 8 * 1024 * 1024:

@@ -108,4 +108,5 @@ def test_fts_migration_preserves_editorial_data(seeded):
     migrated = Database(seeded.path)
     assert migrated.clips(query="Zähne")[0]["id"] == "clip_1"
     assert len(migrated.clips()) == 2
-    assert migrated.one("PRAGMA user_version")["user_version"] == 2
+    assert migrated.one("PRAGMA user_version")["user_version"] == 3
+    assert migrated.one("SELECT count(*) AS n FROM inference_usage")["n"] == 0

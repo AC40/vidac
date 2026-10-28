@@ -11,7 +11,7 @@ export interface Clip {
   shot_end: number;
   favorite: boolean;
   provenance: string;
-  annotation: Record<string, string>;
+  annotation: Record<string, unknown>;
   asset_name: string;
   fps: string;
   width: number;
@@ -48,6 +48,20 @@ export interface Job {
     warnings?: string[];
     relinked?: { asset_id: string; name: string; path: string }[];
     missing?: { asset_id: string; name: string; path: string }[];
+    assets?: number;
+    windows?: number;
+    clips_updated?: number;
+    reviewed_windows?: number;
+    failed_windows?: number;
+    usage?: {
+      requests?: number;
+      input_tokens?: number;
+      output_tokens?: number;
+      reasoning_tokens?: number;
+      cache_read_tokens?: number;
+      cache_write_tokens?: number;
+      cost_usd?: number;
+    };
   };
   payload: Record<string, unknown>;
   created_at: string;
@@ -110,10 +124,13 @@ export interface Settings {
   proxy_height: number;
   ollama_url: string;
   vision_provider: Provider;
+  vision_review_provider: Provider;
   planning_provider: Provider;
   allow_remote_ai: boolean;
   model_timeout_seconds: number;
   vision_model: string;
+  vision_review_model: string;
+  vision_review_threshold: number;
   planning_model: string;
   transcribe: boolean;
   transcription_model: string;
@@ -122,6 +139,7 @@ export interface Settings {
 export interface Stats {
   assets: number;
   clips: number;
+  unclassified: number;
   favorites: number;
   duration: number;
   edits: number;

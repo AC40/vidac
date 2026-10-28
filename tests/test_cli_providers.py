@@ -10,7 +10,7 @@ from pydantic import ValidationError
 from typer.testing import CliRunner
 from vidac.api import create_app
 from vidac.cli import app
-from vidac.cli_providers import parse_events, run_cli, strict_schema
+from vidac.cli_providers import event_usage, parse_events, run_cli, strict_schema
 from vidac.config import Settings
 from vidac.editing import build_plan
 from vidac.ingest import annotate_clip
@@ -136,6 +136,32 @@ def test_failed_or_incomplete_events_are_never_a_plan(provider, events):
         parse_events(provider, "\n".join(json.dumps(e) for e in events))
 
 
+def test_opencode_usage_is_normalized():
+    raw = json.dumps(
+        {
+            "type": "step_finish",
+            "part": {
+                "reason": "stop",
+                "cost": 0.0123,
+                "tokens": {
+                    "input": 1200,
+                    "output": 80,
+                    "reasoning": 10,
+                    "cache": {"read": 40, "write": 20},
+                },
+            },
+        }
+    )
+    assert event_usage("opencode", raw) == {
+        "input_tokens": 1200,
+        "output_tokens": 80,
+        "reasoning_tokens": 10,
+        "cache_read_tokens": 40,
+        "cache_write_tokens": 20,
+        "cost_usd": 0.0123,
+    }
+
+
 @pytest.mark.parametrize("provider", ["codex", "claude", "opencode"])
 def test_planning_routes_and_records_provenance(
     provider, workspace, seeded, monkeypatch, installed
@@ -258,6 +284,17 @@ def test_cli_configure_uses_subscription_transport(workspace, monkeypatch, insta
     assert settings.planning_provider == "codex"
     assert settings.planning_model == "chosen-model"
     assert settings.allow_remote_ai
+
+
+def test_cli_configures_optional_vision_review(workspace, monkeypatch, installed):
+    monkeypatch.setenv("VIDAC_WORKSPACE", str(workspace.root))
+    result = CliRunner().invoke(
+        app, ["configure-ai", "vision-review", "codex", "review-model", "--allow-remote"]
+    )
+    assert result.exit_code == 0, result.output
+    settings = workspace.settings()
+    assert settings.vision_review_provider == "codex"
+    assert settings.vision_review_model == "review-model"
 
 
 @pytest.mark.parametrize("provider", ["codex", "claude", "opencode"])
